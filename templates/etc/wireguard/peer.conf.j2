@@ -1,0 +1,23 @@
+[Interface]
+Address = {{ peer.allowed_ips }}
+{%- if peer.dns is defined %}
+DNS = {{ peer.dns }}
+{%- endif %}
+PrivateKey = {{ wireguard__register_peer_private_key.stdout }}
+
+[Peer]
+PublicKey = {{ wireguard__register_public_key.stdout }}
+{%- if wireguard_preshared_key is defined %}
+PresharedKey = {{ wireguard_preshared_key }}
+{%- endif %}
+{%- if peer.endpoint is defined %}
+Endpoint = {{ peer.endpoint }}
+{%- endif %}
+{% if wireguard_addresses is defined %}
+{%  for wg_addr in wireguard_addresses %}
+Address = {{ wg_addr }}
+{%  endfor %}
+{% endif %}
+{%- if peer.persistent_keepalive is defined %}
+PersistentKeepalive = {{ peer.persistent_keepalive }}
+{%- endif %}

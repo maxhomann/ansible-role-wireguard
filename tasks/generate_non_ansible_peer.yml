@@ -1,0 +1,73 @@
+---
+- name: Check if peer configuration exists
+  ansible.builtin.stat:
+    path: "{{ wireguard_remote_directory }}/peers/{{ peer }}.conf"
+  register: wireguard__register_peer_conf
+
+- name: Generate non ansible peer
+  when: not wireguard__register_peer_conf.stat.exists
+  block:
+    - name: Generate WireGuard private key
+      ansible.builtin.command: wg genkey
+      register: wireguard__register_peer_private_key
+      changed_when: true
+      no_log: '{{ ansible_verbosity < 3 }}'
+
+    - name: Store WireGuard private key to file
+      ansible.builtin.copy:
+        content: "{{ wireguard__register_peer_private_key.stdout }}"
+        dest: "{{ wireguard_remote_directory }}/peers/{{ peer }}.key"
+        mode: "0600"
+        owner: "{{ wireguard_conf_owner }}"
+        group: "{{ wireguard_conf_group }}"
+
+    - name: Generate WireGuard public key from private key
+      ansible.builtin.command: wg pubkey
+      args:
+        stdin: "{{ wireguard__register_peer_private_key.stdout }}"
+      register: wireguard__register_peer_public_key
+      changed_when: true
+      no_log: '{{ ansible_verbosity < 3 }}'
+
+    - name: Store WireGuard public key to file
+      ansible.builtin.copy:
+        content: "{{ wireguard__register_peer_public_key.stdout }}"
+        dest: "{{ wireguard_remote_directory }}/peers/{{ peer }}.pub"
+        mode: "0644"
+        owner: "{{ wireguard_conf_owner }}"
+        group: "{{ wireguard_conf_group }}"
+
+    - name: Generate WireGuard pre-shared key
+      ansible.builtin.command: wg genpsk
+      register: wireguard__register_peer_preshared_key
+      changed_when: true
+      no_log: '{{ ansible_verbosity < 3 }}'
+
+    - name: Store WireGuard pre-shared key to file
+      ansible.builtin.copy:
+        content: "{{ wireguard__register_peer_preshared_key.stdout }}"
+        dest: "{{ wireguard_remote_directory }}/peers/{{ peer }}.psk"
+        mode: "0600"
+        owner: "{{ wireguard_conf_owner }}"
+        group: "{{ wireguard_conf_group }}"
+      no_log: '{{ ansible_verbosity < 3 }}'
+
+    - name: Generate peer configuration files and QR codes
+      ansible.builtin.template:
+        src: "etc/wireguard/peer.conf.j2"
+        dest: "{{ wireguard_remote_directory }}/peers/{{ peer }}.conf"
+        owner: "{{ wireguard_conf_owner }}"
+        group: "{{ wireguard_conf_group }}"
+        mode: "{{ wireguard_conf_mode }}"
+      with_dict: "{{ wireguard_unmanaged_peers }}"
+      register: wireguard__register_peer_configs
+      no_log: '{{ ansible_verbosity < 3 }}'
+      tags:
+        - wg-peers
+
+    - name: Generate QR codes for peer configurations
+      ansible.builtin.shell: |
+        qrencode -t png -o "{{ wireguard_remote_directory }}/peers/{{ item.key }}.png" < "{{ wireguard_remote_directory }}/peers/{{ item.key }}.conf"
+      with_dict: "{{ wireguard_unmanaged_peers }}"
+      tags:
+        - wg-peers

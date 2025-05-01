@@ -1,0 +1,25 @@
+---
+# Copyright (C) 2018-2024 Robert Wimmer
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+- name: Create directory for peer configurations and QR codes
+  ansible.builtin.file:
+    path: "{{ wireguard_remote_directory }}/peers"
+    state: directory
+    mode: "0700"
+  tags:
+    - wg-peers
+
+- name: Install qrencode package
+  ansible.builtin.package:
+    name: qrencode
+    state: present
+  tags:
+    - wg-peers
+
+- name: Generate each peer config
+  when: wireguard_non_ansible_peers is defined
+  ansible.builtin.include_tasks: generate_non_ansible_peer.yml
+  loop: "{{ wireguard_non_ansible_peers }}"
+  loop_control:
+    loop_var: peer
